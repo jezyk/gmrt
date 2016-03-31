@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 import math
 import scipy
+import pylab
 from scipy import signal
 import collections
 from functions import running_avr
@@ -14,6 +15,7 @@ from matplotlib.colors import LogNorm
 import matplotlib.font_manager as font_manager
 
 rms_L_SP = 3.  # === N sigma level in every SP
+rms_L = 3.  # === N sigma in average L
 
 
 def nintd(x):
@@ -29,7 +31,7 @@ V = np.array(np.fromfile('/home/jezyk/Pulpit/data/testv.dat', dtype=np.float32, 
 #U = np.fromfile('/home/jezyk/Pulpit/data/u.dat', dtype=np.float32, count=-1, sep='')
 #V = np.fromfile('/home/jezyk/Pulpit/data/v.dat', dtype=np.float32, count=-1, sep='')
 
-I = I[:len(I)/20]
+I = I[:len(I)]
 Q = Q[:len(I)]
 U = U[:len(I)]
 V = V[:len(I)]
@@ -188,38 +190,45 @@ print sdi2.shape
 
 
 
-#print L, L_b
-
-
 # linear polarisation
 L = np.sqrt(q2d**2 + u2d**2)
 L_b2 = np.sqrt(q2d_b**2 + u2d_b**2)
 L_b = np.sqrt(sdq2**2 + sdu2**2)
+L_b2alt = np.sqrt((np.apply_along_axis(sum, 0, q2d_b))**2 + (np.apply_along_axis(sum, 0, u2d_b))**2)/int(nper)
 
-print 'L_b.shape',L_b.shape, L_b2.shape
-sdL_b20 = np.apply_along_axis(running_avr, 1, L_b2, step_sdv, 0)
-sdL_b21 = np.apply_along_axis(running_avr, 1, L_b2, step_sdv, 1)
+print 'L_b.shape',L_b.shape, L_b2.shape, L_b2alt.shape
+sdL_b20 = np.apply_along_axis(running_avr, 1, L_b2, step_sdv, 0) # srednia biegnaca w wierszu
+sdL_b21 = np.apply_along_axis(running_avr, 1, L_b2, step_sdv, 1) # odchylenie standardowe dla sredniej biegnacej w wierszu
 
-min_sdv_L_b2 = np.apply_along_axis(min, 1, sdL_b21)
-min_pos_L_b2 = np.apply_along_axis(np.argmin, 1, sdL_b21)
+min_sdv_L_b2 = np.apply_along_axis(min, 1, sdL_b21)  # minimalna wartosc odchylenia dla sr. bieg. w wierszu
+min_pos_L_b2 = np.apply_along_axis(np.argmin, 1, sdL_b21) # pozycja 
 
 min_val_L_b2 = []
 for i, arr in zip(min_pos_L_b2, sdL_b20):
      min_val_L_b2.append(arr[i])
 
+#print min_val_L_b2
 
-sdL2d = min_sdv_L_b2# * rms_L_SP
-print sdL2d
 
-#print min_pos_L_b2, min_val_L_b2, min_val_L_b2[0], sdL_b20[0,min_pos_L_b2[0]]
-print sdL2d.shape
+
+#a = np.array([[3, 4, 5, 6, 7], [11, 12, 13, 14, 15]])  #L_b3
+#b = np.array([5, 13]) # rms_L_SP * min_sdv_L_b2  ## 3(N) sigma dla danego wiersza
+#c = (a.T < b).T
+#d = np.zeros(a.shape)
+#d[c == True] = a[c == True]
+#s = csr_matrix(d)
+#e = np.ma.array(a, mask=c)
+#e.mean(axis=0)
+#e.mean(axis=1)
+
+
 
 
 # ==========================================
 # polarisation L Everett, Weisberg & Mitra, Li
 LEW = np.zeros(len(L_b))  
 LEW[L_b/SIEW >= 1.57] = np.sqrt((L_b[L_b/SIEW >= 1.57])**2-SIEW**2)
-
+LEW = np.array(LEW)
 #for i in xrange(len(LEW)):
 #    if (L_b[i]/SIEW >= 1.57):
 #        LEW[i] = np.sqrt((L_b[i])**2 - SIEW**2)
@@ -228,7 +237,11 @@ LEW[L_b/SIEW >= 1.57] = np.sqrt((L_b[L_b/SIEW >= 1.57])**2-SIEW**2)
 
 LML = L_b - SIEW
 
-
+LEW0 =  running_avr(LEW, step_sdv, 0)
+LEW1 =  running_avr(LEW, step_sdv, 1)
+min_sdv_LEW = min(LEW1)
+min_pos_LEW = np.argmin(LEW1)
+print 'min_sdv_LEW, min_pos_LEW', min_sdv_LEW, min_pos_LEW
 # ==========================================
 
 print 'CIRCULAR POLARISATION ---> DONE'
@@ -245,17 +258,51 @@ print 'CIRCULAR POLARISATION ---> DONE'
 #    uppa = np.apply_along_axis(sum, 0, u2d_b)
 #    qppa = np.apply_along_axis(sum, 0, q2d_b) 
 
-ppa = np.array (0.5 * np.arctan2(u2d_b,q2d_b))#**(-1.)
-#ppa1 = np.array (0.5 * np.arctan(u2d_b/q2d_b))#**(-1.)
-print ppa.shape
+
+ppa_all = np.array (0.5 * np.arctan2(u2d_b,q2d_b))
+#ppa_all = np.array (0.5 * np.arctan(u2d_b/q2d_b))
+#print ppa_all.shape
 #    print ppa
-    
-#print np.degrees(ppa), ppa.shape
 
-#exit()
+L_b3 = (L_b2.T - min_val_L_b2).T # L_b2 z odjetym baselinem dla kazdego SP indywidualnie
+Nsigma_SP_L = rms_L_SP * min_sdv_L_b2  # N * rms (L) === w kazdym SP osobno
+mask = (L_b3.T < Nsigma_SP_L).T # tablica z boolami gdzie TRUE jest dla wartosci L w danym binie wiekszej od Nsigma
 
-#i2d_b_l = np.log10(i2d_b)
-#i2d_b_l[np.isnan(i2d_b_l)]=1e-10
+ppa2 = np.zeros(L_b3.shape)
+#print ppa2.shape, ppa2, ppa_all, Nsigma_SP_L, L_b3
+
+#print type(L_b3), type(Nsigma_SP_L), type(mask), type(out1)
+ppa2[mask == False] = ppa_all[mask == False]
+
+ppa2 = np.ma.array(ppa2, mask=mask)
+#print mask, ppa2
+
+ppa = scipy.sparse.csr_matrix(ppa2)
+
+f1 = scipy.sparse.find(ppa)[0]
+f2 = scipy.sparse.find(ppa)[1]
+f3 = scipy.sparse.find(ppa)[2]
+
+PPA_ALL = 0.5 * np.arctan2(np.apply_along_axis(np.mean, 0, u2d_b), np.apply_along_axis(np.mean, 0, q2d_b))
+Nsigma_L = rms_L * np.array(LEW1)
+mask_L = (LEW[:len(LEW1)].T < Nsigma_L).T # stddev L ma dlugosc 930 (NBIN - step_sdv)
+PPA2 = np.zeros(LEW[:len(LEW1)].shape)
+PPA2[mask_L == False] = PPA_ALL[:len(LEW1)][mask_L == False]
+PPA2 = np.ma.array(PPA2, mask=mask_L)
+#print PPA2
+
+PPA = scipy.sparse.csr_matrix(PPA2)
+
+
+
+F1 = scipy.sparse.find(PPA)[0]
+F2 = scipy.sparse.find(PPA)[1]
+F3 = scipy.sparse.find(PPA)[2]
+
+#print F1, F2, np.degrees(F3)
+
+#print mask_L
+#
 
 
 
@@ -294,6 +341,7 @@ plt.plot(LEW, label=r'${L_{EW}}$', lw=0.5)
 #plt.plot(LML, label='LML', lw=0.5)
 #plt.plot(LQU, label='LQU', lw=0.5)
 #plt.plot(L2d_b, label='L-b', lw=0.5)
+plt.plot(L_b2alt, label='L_b2alt', lw=0.5)
 
 #plt.plot(meanV**2, label='meanV2')
 #plt.plot(meanU**2, label='meanU2')
@@ -305,20 +353,27 @@ plt.legend(loc='upper left',prop=font_manager.FontProperties(size=10))
 #plt.show()
 
 
-plt.subplots_adjust(hspace=0.3)
+plt.subplots_adjust(hspace=0.7)
 plt.subplot(313)
 plt.xlim([0,nb])
 #plt.plot(np.degrees(ppa),  label='PPA - arctan', color='r', marker='.', linestyle='none')
 #plt.plot(np.degrees(ppa1), label='PPA - arctan2', color='b', marker='.', linestyle='none')
+#plt.plot(np.degrees(e), label='PPA - arctan2', color='b', marker='.', linestyle='none')
+#print 'ppa', ppa
+#plt.spy(ppa, aspect="auto", markersize=.1)#, label='PPA - arctan2', color='b', marker='.', linestyle='none')
+
+plt.plot(f2, np.degrees(f3), label='PPA - arctan2', color='black', marker='.', markersize=0.1, linestyle='none')
+plt.plot(F2, np.degrees(F3), label='PPA - arctan2', color='red', marker='.', markersize=0.5, linestyle='none')
+
 plt.xlabel('BIN')
 plt.ylabel(r'PPA [$^{\circ}$]')
 plt.title('Polarisation Position Angle')
 #plt.legend(loc='upper left',prop=font_manager.FontProperties(size=8))
 
 #for i in xrange (u2d_b.shape[0]):
-for i in xrange(1):
-    plt.plot (np.degrees(ppa[i,]), marker='.', markersize=0.1, linestyle='none', color='b')
-    print i
+#for i in xrange(1):
+#    plt.plot (np.degrees(ppa[i,]), marker='.', markersize=0.1, linestyle='none', color='b')
+#    print i
 
 
 #plt.savefig('ppa.ps', bbox_inches='tight')
