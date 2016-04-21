@@ -1,0 +1,10 @@
+[BasicData]
+sample_percent: 1          # percent of the sample for analysis
+step_sdv: 100               # step_sdv - step for running average and jump
+rms_L_SP: 3.                # N sigma level in every SP
+rms_L: 3.                   # N sigma in average L
+flag_X_axis_deg: 0          # X axis in bins(0) or in degrees(1)
+flag_rmv_weak_sp: 0 3.      # remove_weak_pulses(1) / take all(0):: if flag_rmv_weak_sp == 1 then set sigma level
+flag_razor: 1 1 1 1 1       # [off(0)/on(1)], [SNR], [lawn_mover], [high_stddev], [noise distribution]
+flag_which_width: 0 5. 0    # [N_sig(0), W_10(1), W_50(2)], [sig], [plot mp 0/1]
+

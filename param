@@ -1,0 +1,5 @@
+[BasicData]
+sample_percent: 1      # percent of the sample for analysis
+step_sdv: 100   # step_sdv - step for running average
+rms_L_SP: 3.     # N sigma level in every SP
+rms_L: 3.     # N sigma in average L
